@@ -173,7 +173,7 @@
         android:layout_above="@id/live_btn_layout"
         android:src="@drawable/change"/>
 
-    <com.faceunity.beautycontrolview.BeautyControlView
+    <com.faceunity.nama.ui.FaceUnityView
         android:layout_above="@id/live_camera_change"
         android:id="@+id/faceunity_control"
         android:layout_width="match_parent"

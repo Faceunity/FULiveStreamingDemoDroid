@@ -123,7 +123,7 @@ public class ConfigActivity extends Activity implements View.OnClickListener{
         publishParam = new PublishParam();
         initButtons();
 
-        ((EditText)findViewById(R.id.main_push_url)).setText(".live.126.net");
+        ((EditText) findViewById(R.id.main_push_url)).setText("rtmp://p557508ca.live.126.net/live/a57f9c5a954644d68e6970945b0ea382?wsSecret=5950f2bf82d594633445d78b1612f018&wsTime=1597212408");
         onClick(findViewById(R.id.main_use_filter));
     }
 

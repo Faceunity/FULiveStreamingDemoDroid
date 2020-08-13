@@ -13,8 +13,6 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <!-- 允许程序获取网络相关信息 -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <!-- 允许程序向外部存储设备写数据 -->
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <!-- 允许程序写音频数据 -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- 允许程序使用PowerManager WakeLocks以防止处理器休眠或者屏幕锁屏 -->
@@ -78,7 +76,7 @@
             android:name=".LiveStreamingActivity"
             android:label="@string/app_name"
             android:configChanges="orientation|keyboardHidden|screenSize"
-            />
+            android:screenOrientation="portrait" />
         <!--android:configChanges="orientation|keyboardHidden|screenSize"-->
 
         <activity
