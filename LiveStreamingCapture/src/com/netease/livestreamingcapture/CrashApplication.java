@@ -3,6 +3,8 @@ package com.netease.livestreamingcapture;
 
 import android.app.Application;
 
+import com.faceunity.nama.FURenderer;
+
 public class CrashApplication extends Application {
 
     private static CrashApplication crashApplication;
@@ -14,6 +16,7 @@ public class CrashApplication extends Application {
 
         CrashHandler crashHandler = CrashHandler.getInstance();
         crashHandler.init(getApplicationContext());
+        FURenderer.setup(this);
     }
 
     public static CrashApplication getInstance() {

@@ -1,6 +1,5 @@
 package com.netease.livestreamingcapture;
 
-import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -10,6 +9,10 @@ import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.hardware.Camera;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.media.AudioManager;
 import android.os.Bundle;
 import android.os.Handler;
@@ -17,6 +20,7 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.SystemClock;
 import android.support.annotation.IdRes;
+import android.support.v4.app.FragmentActivity;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -30,8 +34,8 @@ import android.widget.SeekBar.OnSeekBarChangeListener;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.faceunity.beautycontrolview.BeautyControlView;
-import com.faceunity.beautycontrolview.FURenderer;
+import com.faceunity.nama.FURenderer;
+import com.faceunity.nama.ui.FaceUnityView;
 import com.netease.LSMediaCapture.Statistics;
 import com.netease.LSMediaCapture.lsAudioCaptureCallback;
 import com.netease.LSMediaCapture.lsLogUtil;
@@ -49,7 +53,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.ArrayList;
 
 import static com.netease.LSMediaCapture.lsMediaCapture.StreamType.AUDIO;
 import static com.netease.LSMediaCapture.lsMediaCapture.StreamType.AV;
@@ -57,7 +60,7 @@ import static com.netease.LSMediaCapture.lsMediaCapture.StreamType.VIDEO;
 
 
 //由于直播推流的URL地址较长，可以直接在代码中的mliveStreamingURL设置直播推流的URL
-public class LiveStreamingActivity extends Activity implements OnClickListener, lsMessageHandler {
+public class LiveStreamingActivity extends FragmentActivity implements OnClickListener, lsMessageHandler, SensorEventListener {
 
     private static final String TAG = "LiveStreamingActivity";
     //Demo控件
@@ -107,10 +110,11 @@ public class LiveStreamingActivity extends Activity implements OnClickListener, 
     private boolean mAudioCallback = false; //是否对麦克风采集的数据进行回调（用户在这里可以进行自定义降噪等）
 
     private FURenderer mFURenderer;
-    private BeautyControlView mFaceunityControlView;
+    private FaceUnityView mFaceunityControlView;
     private boolean isFURendererInit;
     private String isOpen;
     private boolean isFront = true;//前置摄像头
+    private SensorManager mSensorManager;
 
     private Toast mToast;
 
@@ -284,7 +288,7 @@ public class LiveStreamingActivity extends Activity implements OnClickListener, 
 
         //********** 摄像头采集原始数据回调（非滤镜模式下开发者可以修改该数据，美颜增加滤镜等，推出的流便随之发生变化） *************//
         if (mVideoCallback) {
-            if (isOpen.equals("true")) {
+            if ("true".equals(isOpen)) {
                 mLSMediaCapture.setCaptureRawDataCB(new VideoCallback() {
                     @Override
                     /**
@@ -298,11 +302,11 @@ public class LiveStreamingActivity extends Activity implements OnClickListener, 
                      */
                     public int onVideoCapture(byte[] data, int textureId, int width, int height, int orientation) {
                         if (!isFURendererInit) {
-                            mFURenderer.loadItems();
+                            mFURenderer.onSurfaceCreated();
                             isFURendererInit = true;
                         }
-
-                        return mFURenderer.onDrawFrameDoubleInput(data, textureId, width, height);
+//                        return mFURenderer.onDrawFrameDualInput(data, textureId, width, height);
+                        return mFURenderer.onDrawFrameSingleInput(data, width, height, FURenderer.INPUT_FORMAT_NV21_BUFFER);
                     }
                 });
             }
@@ -363,7 +367,7 @@ public class LiveStreamingActivity extends Activity implements OnClickListener, 
         audioMixVolumeIntentFilter.addAction("AudioMixVolume");
         registerReceiver(audioMixVolumeMsgReceiver, audioMixVolumeIntentFilter);
 
-        initFaceU();
+        initFaceU(publishParam.streamType == AUDIO);
     }
 
     //开始直播
@@ -451,6 +455,10 @@ public class LiveStreamingActivity extends Activity implements OnClickListener, 
     protected void onDestroy() {
         Log.i(TAG, "activity onDestroy");
 
+        if (null != mSensorManager) {
+            mSensorManager.unregisterListener(this);
+        }
+
         disMissNetworkInfoDialog();
         if (mHandler != null) {
             mHandler.removeCallbacksAndMessages(null);
@@ -497,8 +505,9 @@ public class LiveStreamingActivity extends Activity implements OnClickListener, 
         if (m_liveStreamingOn) {
             m_liveStreamingOn = false;
         }
-
-        destroyFaceU();
+        if (null != mFURenderer) {
+            mFURenderer.onSurfaceDestroyed();
+        }
 
         super.onDestroy();
     }
@@ -1210,46 +1219,31 @@ public class LiveStreamingActivity extends Activity implements OnClickListener, 
                 break;
             }
             case MSG_HW_VIDEO_PACKET_ERROR://视频硬件编码出错反馈消息
-            {
                 break;
-            }
             case MSG_WATERMARK_INIT_ERROR://视频水印操作初始化出错
-            {
                 break;
-            }
             case MSG_WATERMARK_PIC_OUT_OF_VIDEO_ERROR://视频水印图像超出原始视频出错
-            {
                 //Log.i(TAG, "test: in handleMessage: MSG_WATERMARK_PIC_OUT_OF_VIDEO_ERROR");
                 break;
-            }
             case MSG_WATERMARK_PARA_ERROR://视频水印参数设置出错
-            {
                 //Log.i(TAG, "test: in handleMessage: MSG_WATERMARK_PARA_ERROR");
                 break;
-            }
             case MSG_CAMERA_PREVIEW_SIZE_NOT_SUPPORT_ERROR://camera采集分辨率不支持
-            {
                 //Log.i(TAG, "test: in handleMessage: MSG_CAMERA_PREVIEW_SIZE_NOT_SUPPORT_ERROR");
                 break;
-            }
             case MSG_CAMERA_NOT_SUPPORT_FLASH:
                 showToast("不支持闪光灯");
                 break;
             case MSG_START_PREVIEW_FINISHED://camera采集预览完成
-            {
                 Log.i(TAG, "test: MSG_START_PREVIEW_FINISHED");
                 break;
-            }
             case MSG_START_LIVESTREAMING_FINISHED://开始直播完成
-            {
                 Log.i(TAG, "test: MSG_START_LIVESTREAMING_FINISHED");
                 showToast("直播开始");
                 m_liveStreamingOn = true;
                 startPauseResumeBtn.setClickable(true);
                 break;
-            }
             case MSG_STOP_LIVESTREAMING_FINISHED://停止直播完成
-            {
                 Log.i(TAG, "test: MSG_STOP_LIVESTREAMING_FINISHED");
                 showToast("停止直播已完成");
                 m_liveStreamingOn = false;
@@ -1260,7 +1254,6 @@ public class LiveStreamingActivity extends Activity implements OnClickListener, 
                 }
 
                 break;
-            }
             case MSG_STOP_VIDEO_CAPTURE_FINISHED: {
                 Log.i(TAG, "test: in handleMessage: MSG_STOP_VIDEO_CAPTURE_FINISHED");
                 break;
@@ -1270,28 +1263,20 @@ public class LiveStreamingActivity extends Activity implements OnClickListener, 
                 break;
             }
             case MSG_SWITCH_CAMERA_FINISHED://切换摄像头完成
-            {
                 showToast("相机切换成功");
                 isFront = !isFront;
                 if (mFURenderer != null)
-                    mFURenderer.setCurrentCameraType(isFront ? Camera.CameraInfo.CAMERA_FACING_FRONT :
-                            Camera.CameraInfo.CAMERA_FACING_BACK);
+                    mFURenderer.onCameraChanged(isFront ? Camera.CameraInfo.CAMERA_FACING_FRONT :
+                            Camera.CameraInfo.CAMERA_FACING_BACK, isFront ? 270 : 90);
                 break;
-            }
             case MSG_SEND_STATICS_LOG_FINISHED://发送统计信息完成
-            {
                 //Log.i(TAG, "test: in handleMessage, MSG_SEND_STATICS_LOG_FINISHED");
                 break;
-            }
             case MSG_SERVER_COMMAND_STOP_LIVESTREAMING://服务器下发停止直播的消息反馈，暂时不使用
-            {
                 //Log.i(TAG, "test: in handleMessage, MSG_SERVER_COMMAND_STOP_LIVESTREAMING");
                 break;
-            }
             case MSG_GET_STATICS_INFO://获取统计信息的反馈消息
             {
-
-
                 Message message = Message.obtain(mHandler, MSG_GET_STATICS_INFO);
                 Statistics statistics = (Statistics) object;
 
@@ -1311,52 +1296,36 @@ public class LiveStreamingActivity extends Activity implements OnClickListener, 
                 break;
             }
             case MSG_BAD_NETWORK_DETECT://如果连续一段时间（10s）实际推流数据为0，会反馈这个错误消息
-            {
                 showToast("MSG_BAD_NETWORK_DETECT");
                 //Log.i(TAG, "test: in handleMessage, MSG_BAD_NETWORK_DETECT");
                 break;
-            }
             case MSG_SCREENSHOT_FINISHED://视频截图完成后的消息反馈
-            {
                 getScreenShotByteBuffer((Bitmap) object);
-
                 break;
-            }
             case MSG_SET_CAMERA_ID_ERROR://设置camera出错（对于只有一个摄像头的设备，如果调用了不存在的摄像头，会反馈这个错误消息）
-            {
                 //Log.i(TAG, "test: in handleMessage, MSG_SET_CAMERA_ID_ERROR");
                 break;
-            }
             case MSG_SET_GRAFFITI_ERROR://设置涂鸦出错消息反馈
-            {
                 //Log.i(TAG, "test: in handleMessage, MSG_SET_GRAFFITI_ERROR");
                 break;
-            }
             case MSG_MIX_AUDIO_FINISHED://伴音一首MP3歌曲结束后的反馈
-            {
                 //Log.i(TAG, "test: in handleMessage, MSG_MIX_AUDIO_FINISHED");
                 break;
-            }
             case MSG_URL_FORMAT_NOT_RIGHT://推流url格式不正确
-            {
                 //Log.i(TAG, "test: in handleMessage, MSG_URL_FORMAT_NOT_RIGHT");
                 showToast("MSG_URL_FORMAT_NOT_RIGHT");
                 break;
-            }
             case MSG_URL_IS_EMPTY://推流url为空
-            {
                 //Log.i(TAG, "test: in handleMessage, MSG_URL_IS_EMPTY");
                 break;
-            }
-
             case MSG_SPEED_CALC_SUCCESS:
-            case MSG_SPEED_CALC_FAIL:
+            case MSG_SPEED_CALC_FAIL: {
                 Message message = Message.obtain(mHandler, msg);
                 message.obj = object;
                 mHandler.sendMessage(message);
                 mSpeedCalcRunning = false;
                 break;
-
+            }
             default:
                 break;
 
@@ -1368,7 +1337,6 @@ public class LiveStreamingActivity extends Activity implements OnClickListener, 
         FileOutputStream outStream = null;
         String screenShotFilePath = mScreenShotFilePath + mScreenShotFileName;
         try {
-
             outStream = new FileOutputStream(String.format(screenShotFilePath));
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, outStream);
             showToast("截图已保存到SD下的test.jpg");
@@ -1389,7 +1357,6 @@ public class LiveStreamingActivity extends Activity implements OnClickListener, 
     //Demo层视频缩放和摄像头对焦操作相关方法
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-
         switch (event.getAction()) {
             case MotionEvent.ACTION_DOWN:
                 //Log.i(TAG, "test: down!!!");
@@ -1405,7 +1372,6 @@ public class LiveStreamingActivity extends Activity implements OnClickListener, 
                  * 如果大于两个则执行以下操作（即图片的缩放操作）。 
                  */
                 if (event.getPointerCount() >= 2) {
-
                     float offsetX = event.getX(0) - event.getX(1);
                     float offsetY = event.getY(0) - event.getY(1);
                     /**
@@ -1449,7 +1415,6 @@ public class LiveStreamingActivity extends Activity implements OnClickListener, 
                             if (mLSMediaCapture != null) {
                                 mLSMediaCapture.setCameraZoomPara(mCurrentZoomValue);
                             }
-
                             mLastDistance = mCurrentDistance;
                         }
                     }
@@ -1460,11 +1425,9 @@ public class LiveStreamingActivity extends Activity implements OnClickListener, 
                 if (filterLayout != null) {
                     filterLayout.setVisibility(View.GONE);
                 }
-
                 if (configLayout != null) {
                     configLayout.setVisibility(View.GONE);
                 }
-
                 break;
             default:
                 break;
@@ -1478,13 +1441,30 @@ public class LiveStreamingActivity extends Activity implements OnClickListener, 
         m_tryToStopLivestreaming = true;
     }
 
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+        if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
+            float x = event.values[0];
+            float y = event.values[1];
+            if (Math.abs(x) > 3 || Math.abs(y) > 3) {
+                if (Math.abs(x) > Math.abs(y)) {
+                    mFURenderer.onDeviceOrientationChanged(x > 0 ? 0 : 180);
+                } else {
+                    mFURenderer.onDeviceOrientationChanged(y > 0 ? 90 : 270);
+                }
+            }
+        }
+    }
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {
+    }
+
 
     //用于接收Service发送的消息，伴音开关
     public class MsgReceiver extends BroadcastReceiver {
-
         @Override
         public void onReceive(Context context, Intent intent) {
-
             int audioMixMsg = intent.getIntExtra("AudioMixMSG", 0);
             mMixAudioFilePath = mMP3AppFileDirectory.toString() + "/" + intent.getStringExtra("AudioMixFilePathMSG");
 
@@ -1492,7 +1472,6 @@ public class LiveStreamingActivity extends Activity implements OnClickListener, 
             if (audioMixMsg == 1) {
                 if (mMixAudioFilePath.isEmpty())
                     return;
-
                 if (mLSMediaCapture != null) {
                     mLSMediaCapture.startPlayMusic(mMixAudioFilePath, false);
                 }
@@ -1514,43 +1493,35 @@ public class LiveStreamingActivity extends Activity implements OnClickListener, 
 
     //用于接收Service发送的消息，伴音音量
     public class audioMixVolumeMsgReceiver extends BroadcastReceiver {
-
         @Override
         public void onReceive(Context context, Intent intent) {
-
             int audioMixVolumeMsg = intent.getIntExtra("AudioMixVolumeMSG", 0);
-
             //伴音音量的控制
             int streamVolume = mAudioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
             int maxStreamVolume = mAudioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
-
             streamVolume = audioMixVolumeMsg * maxStreamVolume / 10;
             mAudioManager.setStreamVolume(AudioManager.STREAM_MUSIC, streamVolume, 1);
         }
     }
 
-    private void initFaceU() {
-        mFaceunityControlView = (BeautyControlView) findViewById(R.id.faceunity_control);
-        if (isOpen.equals("false")) {
+    private void initFaceU(boolean isAudio) {
+        mFaceunityControlView = findViewById(R.id.faceunity_control);
+        if ("false".equals(isOpen) || isAudio) {
             mFaceunityControlView.setVisibility(View.GONE);
         } else {
-            mFURenderer = new FURenderer.Builder(this).inputTextureType(1).build();
-            mFaceunityControlView.setOnFaceUnityControlListener(mFURenderer);
+            mFURenderer = new FURenderer.Builder(this)
+                    .setInputTextureType(FURenderer.INPUT_TEXTURE_EXTERNAL_OES)
+                    .build();
+            mFaceunityControlView.setModuleManager(mFURenderer);
+            mSensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+            Sensor sensor = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+            mSensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL);
         }
-
-//		mFURenderer.loadItems();
-    }
-
-    private void destroyFaceU() {
-        if (mFURenderer != null)
-            mFURenderer.destroyItems();
-    }
-
-    private void showOrHideFaceULayout(boolean show) {
-        mFaceunityControlView.setVisibility(show ? View.VISIBLE : View.GONE);
     }
 
     public void onBackgroundClick(View view) {
-        showOrHideFaceULayout(mFaceunityControlView.getVisibility() != View.VISIBLE);
+        if (null != mFURenderer) {
+            mFaceunityControlView.setVisibility(mFaceunityControlView.getVisibility() != View.VISIBLE ? View.VISIBLE : View.GONE);
+        }
     }
 }
