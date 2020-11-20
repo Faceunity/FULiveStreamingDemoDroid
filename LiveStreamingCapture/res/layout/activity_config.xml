@@ -34,10 +34,23 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <TextView
-                style="@style/text_title_small"
-                android:text="键入直播地址"
-                />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <TextView
+                    style="@style/text_title_small"
+                    android:layout_width="wrap_content"
+                    android:text="键入直播地址" />
+
+                <Spinner
+                    android:id="@+id/spUrl"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="match_parent"/>
+
+            </LinearLayout>
 
             <EditText
                 android:id="@+id/main_push_url"
