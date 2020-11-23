@@ -14,10 +14,14 @@ import android.support.v4.app.ActivityCompat;
 import android.text.TextUtils;
 import android.view.View;
 import android.view.Window;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.RadioGroup;
+import android.widget.SimpleAdapter;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -44,7 +48,14 @@ public class ConfigActivity extends Activity implements View.OnClickListener{
     private TextView txtUsingFilter = null, txtWatermark = null, txtQos = null, txtGraffiti = null,txtFrontCamera = null,txtUpload = null;
     private Button mainStartBtn = null;
     private ImageView imageScan = null;
+    private Spinner mSpinnerUrl;
     private DateFormat formatter_file_name = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault());
+    private String[] pushUrl = new String[]{
+            "请输入推流地址1",
+            "请输入推流地址2",
+            "请输入推流地址3"
+    };
+    private String[] pushUrlTitle = new String[]{"推流地址1","推流地址2","推流地址3"};
 
     /**   6.0权限处理     **/
     private boolean bPermission = false;
@@ -122,8 +133,20 @@ public class ConfigActivity extends Activity implements View.OnClickListener{
         registerReceiver(msgReceiver, intentFilter);
         publishParam = new PublishParam();
         initButtons();
+        mSpinnerUrl = findViewById(R.id.spUrl);
+        mSpinnerUrl.setAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, pushUrlTitle));
+        mSpinnerUrl.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
+                ((EditText)findViewById(R.id.main_push_url)).setText(pushUrl[pos]);
+            }
 
-        ((EditText)findViewById(R.id.main_push_url)).setText(".live.126.net");
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                // TODO
+            }
+        });
+        mSpinnerUrl.setSelection(0);
         onClick(findViewById(R.id.main_use_filter));
     }
 
