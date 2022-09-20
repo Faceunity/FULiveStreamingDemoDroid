@@ -34,8 +34,15 @@ import android.widget.SeekBar.OnSeekBarChangeListener;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.faceunity.core.entity.FURenderOutputData;
+import com.faceunity.core.enumeration.CameraFacingEnum;
+import com.faceunity.core.enumeration.FUAIProcessorEnum;
+import com.faceunity.core.enumeration.FUInputTextureEnum;
+import com.faceunity.core.enumeration.FUTransformMatrixEnum;
+import com.faceunity.core.utils.CameraUtils;
 import com.faceunity.nama.FURenderer;
-import com.faceunity.nama.IFURenderer;
+import com.faceunity.nama.data.FaceUnityDataFactory;
+import com.faceunity.nama.listener.FURendererListener;
 import com.faceunity.nama.ui.FaceUnityView;
 import com.netease.LSMediaCapture.Statistics;
 import com.netease.LSMediaCapture.lsAudioCaptureCallback;
@@ -117,13 +124,12 @@ public class LiveStreamingActivity extends FragmentActivity implements OnClickLi
 
     private TextView mTvFps;
     private FURenderer mFURenderer;
+    private FaceUnityDataFactory mFaceUnityDataFactory;
     private CSVUtils mCSVUtils;
     private FaceUnityView mFaceunityControlView;
     private boolean isFURendererInit;
     private String isOpen;
-    private boolean isFront = true;//前置摄像头
     private SensorManager mSensorManager;
-
     private Toast mToast;
 
     private void showToast(final String text) {
@@ -298,7 +304,6 @@ public class LiveStreamingActivity extends FragmentActivity implements OnClickLi
         if (mVideoCallback) {
             if ("true".equals(isOpen)) {
                 mLSMediaCapture.setCaptureRawDataCB(new VideoCallback() {
-                    private byte[] mReadBack;
                     @Override
                     /**
                      * 摄像头采集数据回调
@@ -311,41 +316,22 @@ public class LiveStreamingActivity extends FragmentActivity implements OnClickLi
                      */
                     public int onVideoCapture(byte[] data, int textureId, int width, int height, int orientation) {
                         if (!isFURendererInit) {
-                            mFURenderer.onSurfaceCreated();
+                            mFURenderer.prepareRenderer(mFURendererListener);
                             initCsvUtil(LiveStreamingActivity.this);
                             isFURendererInit = true;
-                            mReadBack = new byte[data.length];
                         }
-                        // 输入类型 1 双输入 2 单texture 3 单buffer 4 双输入返回buffer 5 单buffer 返回buffer
-                        int inputType = 4;
-                        int fuTex = 0;
-                        long start = System.nanoTime();
-                        switch (inputType) {
-                            case 1:
-                                fuTex = mFURenderer.onDrawFrameDualInput(data, textureId, width, height);
-                                break;
-                            case 2:
-                                fuTex = mFURenderer.onDrawFrameSingleInput(textureId, width, height);
-                                break;
-                            case 3:
-                                fuTex = mFURenderer.onDrawFrameSingleInput(data, width, height, IFURenderer.INPUT_FORMAT_NV21_BUFFER);
-                                break;
-                            case 4:
-                                fuTex = 0;
-                                mFURenderer.onDrawFrameDualInput(data, textureId, width, height, mReadBack,  width, height);
-                                System.arraycopy(mReadBack,0, data, 0, data.length);
-                                break;
-                            case 5:
-                                fuTex = 0;
-                                mFURenderer.onDrawFrameSingleInput(data, width, height, IFURenderer.INPUT_FORMAT_NV21_BUFFER, mReadBack,  width, height);
-                                System.arraycopy(mReadBack,0, data, 0, data.length);
-                                break;
-                        }
+                        mFURenderer.setInputOrientation(orientation);
+                        Log.d(TAG, "onVideoCapture: " + orientation);
+                        long start = System.currentTimeMillis();
+                        FURenderOutputData outputData = mFURenderer.onDrawFrameDualInputReturn(data, textureId, width, height);
                         long renderTime = System.nanoTime() - start;
                         if (mCSVUtils != null) {
                             mCSVUtils.writeCsv(null, renderTime);
                         }
-                        return fuTex;
+                        if (outputData != null && outputData.getImage() != null && outputData.getImage().getBuffer() != null) {
+                            System.arraycopy(outputData.getImage().getBuffer(),0, data, 0, data.length);
+                        }
+                        return 0;
                     }
                 });
             }
@@ -545,7 +531,7 @@ public class LiveStreamingActivity extends FragmentActivity implements OnClickLi
             m_liveStreamingOn = false;
         }
         if (null != mFURenderer) {
-            mFURenderer.onSurfaceDestroyed();
+            mFURenderer.release();
         }
         if (mCSVUtils != null) {
             mCSVUtils.close();
@@ -1306,14 +1292,6 @@ public class LiveStreamingActivity extends FragmentActivity implements OnClickLi
             }
             case MSG_SWITCH_CAMERA_FINISHED://切换摄像头完成
                 showToast("相机切换成功");
-                isFront = !isFront;
-                if (mFURenderer != null) {
-                    mFURenderer.onCameraChanged(isFront ? Camera.CameraInfo.CAMERA_FACING_FRONT :
-                            Camera.CameraInfo.CAMERA_FACING_BACK, isFront ? 270 : 90);
-                    if (mFURenderer.getMakeupModule() != null) {
-                        mFURenderer.getMakeupModule().setIsMakeupFlipPoints(isFront ? 0 : 1);
-                    }
-                }
                 break;
             case MSG_SEND_STATICS_LOG_FINISHED://发送统计信息完成
                 //Log.i(TAG, "test: in handleMessage, MSG_SEND_STATICS_LOG_FINISHED");
@@ -1494,9 +1472,9 @@ public class LiveStreamingActivity extends FragmentActivity implements OnClickLi
             float y = event.values[1];
             if (Math.abs(x) > 3 || Math.abs(y) > 3) {
                 if (Math.abs(x) > Math.abs(y)) {
-                    mFURenderer.onDeviceOrientationChanged(x > 0 ? 0 : 180);
+                    mFURenderer.setDeviceOrientation(x > 0 ? 0 : 180);
                 } else {
-                    mFURenderer.onDeviceOrientationChanged(y > 0 ? 90 : 270);
+                    mFURenderer.setDeviceOrientation(y > 0 ? 90 : 270);
                 }
             }
         }
@@ -1554,31 +1532,53 @@ public class LiveStreamingActivity extends FragmentActivity implements OnClickLi
         if ("false".equals(isOpen) || isAudio) {
             mFaceunityControlView.setVisibility(View.GONE);
         } else {
-            mFURenderer = new FURenderer.Builder(this)
-                    .setInputTextureType(FURenderer.INPUT_TEXTURE_EXTERNAL_OES)
-                    .setRunBenchmark(true)
-                    .setOnDebugListener(new FURenderer.OnDebugListener() {
-                        @Override
-                        public void onFpsChanged(double fps, double callTime) {
-                            final String FPS = String.format(Locale.getDefault(), "%.2f", fps);
-                            Log.e(TAG, "onFpsChanged: FPS " + FPS + " callTime " + String.format(Locale.getDefault(), "%.2f", callTime));
-                            runOnUiThread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    if (mTvFps != null) {
-                                        mTvFps.setText("FPS: " + FPS);
-                                    }
-                                }
-                            });
-                        }
-                    })
-                    .build();
-            mFaceunityControlView.setModuleManager(mFURenderer);
+            mFURenderer = FURenderer.getInstance();
+            mFURenderer.setInputTextureType(FUInputTextureEnum.FU_ADM_FLAG_EXTERNAL_OES_TEXTURE);
+            mFURenderer.setMarkFPSEnable(true);
+            mFaceUnityDataFactory = new FaceUnityDataFactory(0);
+            mFaceunityControlView.bindDataFactory(mFaceUnityDataFactory);
             mSensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
             Sensor sensor = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
             mSensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL);
         }
     }
+
+    private FURendererListener mFURendererListener = new FURendererListener() {
+
+        @Override
+        public void onPrepare() {
+            mFaceUnityDataFactory.bindCurrentRenderer();
+        }
+
+        @Override
+        public void onTrackStatusChanged(FUAIProcessorEnum type, int status) {
+            Log.e(TAG, "onTrackStatusChanged: 人脸数: " + status);
+        }
+
+        @Override
+        public void onFpsChanged(double fps, double callTime) {
+            Log.d(TAG, "onFpsChanged FPS: " + String.format("%.2f", fps) + ", callTime: " + String.format("%.2f", callTime));
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    final String FPS = String.format(Locale.getDefault(), "%.2f", fps);
+                    Log.e(TAG, "onFpsChanged: FPS " + FPS + " callTime " + String.format(Locale.getDefault(), "%.2f", callTime));
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (mTvFps != null) {
+                                mTvFps.setText("FPS: " + FPS);
+                            }
+                        }
+                    });
+                }
+            });
+        }
+
+        @Override
+        public void onRelease() {
+        }
+    };
 
     public void onBackgroundClick(View view) {
         if (null != mFURenderer) {
@@ -1596,7 +1596,7 @@ public class LiveStreamingActivity extends FragmentActivity implements OnClickLi
         String filePath = Constant.filePath + dateStrDir + File.separator + "excel-" + dateStrFile + ".csv";
         Log.d(TAG, "initLog: CSV file path:" + filePath);
         StringBuilder headerInfo = new StringBuilder();
-        headerInfo.append("version：").append(FURenderer.getVersion()).append(CSVUtils.COMMA)
+        headerInfo.append("version：").append(FURenderer.getInstance().getVersion()).append(CSVUtils.COMMA)
                 .append("机型：").append(android.os.Build.MANUFACTURER).append(android.os.Build.MODEL)
                 .append("处理方式：Texture").append(CSVUtils.COMMA);
         mCSVUtils.initHeader(filePath, headerInfo);

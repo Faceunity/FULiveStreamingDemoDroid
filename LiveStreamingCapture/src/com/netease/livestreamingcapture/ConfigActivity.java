@@ -48,14 +48,7 @@ public class ConfigActivity extends Activity implements View.OnClickListener{
     private TextView txtUsingFilter = null, txtWatermark = null, txtQos = null, txtGraffiti = null,txtFrontCamera = null,txtUpload = null;
     private Button mainStartBtn = null;
     private ImageView imageScan = null;
-    private Spinner mSpinnerUrl;
     private DateFormat formatter_file_name = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault());
-    private String[] pushUrl = new String[]{
-            "请输入推流地址1",
-            "请输入推流地址2",
-            "请输入推流地址3"
-    };
-    private String[] pushUrlTitle = new String[]{"推流地址1","推流地址2","推流地址3"};
 
     /**   6.0权限处理     **/
     private boolean bPermission = false;
@@ -133,20 +126,7 @@ public class ConfigActivity extends Activity implements View.OnClickListener{
         registerReceiver(msgReceiver, intentFilter);
         publishParam = new PublishParam();
         initButtons();
-        mSpinnerUrl = findViewById(R.id.spUrl);
-        mSpinnerUrl.setAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, pushUrlTitle));
-        mSpinnerUrl.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
-                ((EditText)findViewById(R.id.main_push_url)).setText(pushUrl[pos]);
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-                // TODO
-            }
-        });
-        mSpinnerUrl.setSelection(0);
+        ((EditText)findViewById(R.id.main_push_url)).setText();
         onClick(findViewById(R.id.main_use_filter));
     }
 
@@ -263,7 +243,7 @@ public class ConfigActivity extends Activity implements View.OnClickListener{
                     return;
                 }
 
-                if(StringUtil.isEmpty(publishParam.pushUrl) || !publishParam.pushUrl.contains(".live.126.net")){
+                if(StringUtil.isEmpty(publishParam.pushUrl)){
                     Toast.makeText(getApplication(),"请先设置正确的推流地址", Toast.LENGTH_LONG).show();
                 }
                 else
