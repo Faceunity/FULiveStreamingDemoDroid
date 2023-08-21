@@ -3,7 +3,7 @@ package com.netease.livestreamingcapture;
 
 import android.app.Application;
 
-import com.faceunity.FUConfig;
+import com.faceunity.nama.FUConfig;
 import com.faceunity.nama.FURenderer;
 import com.faceunity.nama.utils.FuDeviceUtils;
 
@@ -19,7 +19,7 @@ public class CrashApplication extends Application {
         CrashHandler crashHandler = CrashHandler.getInstance();
         crashHandler.init(getApplicationContext());
 
-        FUConfig.DEVICE_LEVEL = FuDeviceUtils.judgeDeviceLevel(this);
+        FUConfig.DEVICE_LEVEL = FuDeviceUtils.judgeDeviceLevelGPU();
         FURenderer.getInstance().setup(this);
     }
 

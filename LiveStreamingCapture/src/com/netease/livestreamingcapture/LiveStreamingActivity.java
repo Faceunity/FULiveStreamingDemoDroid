@@ -39,11 +39,16 @@ import com.faceunity.core.enumeration.CameraFacingEnum;
 import com.faceunity.core.enumeration.FUAIProcessorEnum;
 import com.faceunity.core.enumeration.FUInputTextureEnum;
 import com.faceunity.core.enumeration.FUTransformMatrixEnum;
+import com.faceunity.core.faceunity.FUAIKit;
+import com.faceunity.core.faceunity.FURenderKit;
+import com.faceunity.core.model.facebeauty.FaceBeautyBlurTypeEnum;
 import com.faceunity.core.utils.CameraUtils;
+import com.faceunity.nama.FUConfig;
 import com.faceunity.nama.FURenderer;
 import com.faceunity.nama.data.FaceUnityDataFactory;
 import com.faceunity.nama.listener.FURendererListener;
 import com.faceunity.nama.ui.FaceUnityView;
+import com.faceunity.nama.utils.FuDeviceUtils;
 import com.netease.LSMediaCapture.Statistics;
 import com.netease.LSMediaCapture.lsAudioCaptureCallback;
 import com.netease.LSMediaCapture.lsLogUtil;
@@ -304,6 +309,24 @@ public class LiveStreamingActivity extends FragmentActivity implements OnClickLi
         if (mVideoCallback) {
             if ("true".equals(isOpen)) {
                 mLSMediaCapture.setCaptureRawDataCB(new VideoCallback() {
+
+                    private void cheekFaceNum() {
+                        //根据有无人脸 + 设备性能 判断开启的磨皮类型
+                        float faceProcessorGetConfidenceScore = FUAIKit.getInstance().getFaceProcessorGetConfidenceScore(0);
+                        if (faceProcessorGetConfidenceScore >= 0.95) {
+                            //高端手机并且检测到人脸开启均匀磨皮，人脸点位质
+                            if (FURenderKit.getInstance().getFaceBeauty() != null && FURenderKit.getInstance().getFaceBeauty().getBlurType() != FaceBeautyBlurTypeEnum.EquallySkin) {
+                                FURenderKit.getInstance().getFaceBeauty().setBlurType(FaceBeautyBlurTypeEnum.EquallySkin);
+                                FURenderKit.getInstance().getFaceBeauty().setEnableBlurUseMask(true);
+                            }
+                        } else {
+                            if (FURenderKit.getInstance().getFaceBeauty() != null && FURenderKit.getInstance().getFaceBeauty().getBlurType() != FaceBeautyBlurTypeEnum.FineSkin) {
+                                FURenderKit.getInstance().getFaceBeauty().setBlurType(FaceBeautyBlurTypeEnum.FineSkin);
+                                FURenderKit.getInstance().getFaceBeauty().setEnableBlurUseMask(false);
+                            }
+                        }
+                    }
+
                     @Override
                     /**
                      * 摄像头采集数据回调
@@ -321,9 +344,18 @@ public class LiveStreamingActivity extends FragmentActivity implements OnClickLi
                             isFURendererInit = true;
                         }
                         mFURenderer.setInputOrientation(orientation);
+                        if (FUConfig.DEVICE_LEVEL > FuDeviceUtils.DEVICE_LEVEL_MID) {
+                            cheekFaceNum();
+                        }
                         Log.d(TAG, "onVideoCapture: " + orientation);
                         long start = System.currentTimeMillis();
-                        FURenderOutputData outputData = mFURenderer.onDrawFrameDualInputReturn(data, textureId, width, height);
+                        FURenderOutputData outputData;
+                        if (mFaceUnityDataFactory.isMakeupLoaded()) {
+                            //美妆使用单输入
+                            outputData = mFURenderer.onDrawFrameDualInputReturn(data, 0, width, height);
+                        }else {
+                            outputData = mFURenderer.onDrawFrameDualInputReturn(data, textureId, width, height);
+                        }
                         long renderTime = System.nanoTime() - start;
                         if (mCSVUtils != null) {
                             mCSVUtils.writeCsv(null, renderTime);
@@ -1535,7 +1567,7 @@ public class LiveStreamingActivity extends FragmentActivity implements OnClickLi
             mFURenderer = FURenderer.getInstance();
             mFURenderer.setInputTextureType(FUInputTextureEnum.FU_ADM_FLAG_EXTERNAL_OES_TEXTURE);
             mFURenderer.setMarkFPSEnable(true);
-            mFaceUnityDataFactory = new FaceUnityDataFactory(0);
+            mFaceUnityDataFactory = new FaceUnityDataFactory(-1);
             mFaceunityControlView.bindDataFactory(mFaceUnityDataFactory);
             mSensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
             Sensor sensor = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
