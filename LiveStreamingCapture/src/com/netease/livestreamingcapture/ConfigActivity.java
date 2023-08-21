@@ -126,7 +126,7 @@ public class ConfigActivity extends Activity implements View.OnClickListener{
         registerReceiver(msgReceiver, intentFilter);
         publishParam = new PublishParam();
         initButtons();
-        ((EditText)findViewById(R.id.main_push_url)).setText();
+        ((EditText)findViewById(R.id.main_push_url)).setText("请设置推流地址");
         onClick(findViewById(R.id.main_use_filter));
     }
 
