@@ -200,27 +200,7 @@ public class LiveStreamingActivity extends FragmentActivity implements OnClickLi
 
 
         //3、 预览参数设置
-        NeteaseView videoView = (NeteaseView) findViewById(R.id.videoview);
-        boolean frontCamera = publishParam.frontCamera; // 是否前置摄像头
-        boolean mScale_16x9 = publishParam.isScale_16x9; //是否强制16:9
-        if (publishParam.streamType != AUDIO) { //开启预览画面
-//            lsMediaCapture.VideoQuality videoQuality = publishParam.videoQuality; //视频模板（SUPER_HIGH 1280*720、SUPER 960*540、HIGH 640*480、MEDIUM 480*360、LOW 352*288）
-//            mLSMediaCapture.startVideoPreview(videoView, frontCamera, mUseFilter, videoQuality, mScale_16x9);
-
-            // SDK 默认提供 /** 标清 480*360 */MEDIUM, /** 高清 640*480 */HIGH,
-            // /** 超清 960*540 */SUPER,/** 超高清 (1280*720) */SUPER_HIGH  四个模板，
-            // 用户如果需要自定义分辨率可以调用startVideoPreviewEx 接口并参考以下参数
-            // 码率计算公式为 width * height * fps * 9 /100;
-
-            lsMediaCapture.VideoPara para = new lsMediaCapture.VideoPara();
-            para.setHeight(720);
-            para.setWidth(1280);
-            para.setFps(30);
-            para.setBitrate(1200*1024);
-            mLSMediaCapture.startVideoPreviewEx(videoView,frontCamera,mUseFilter,para);
-        }
-
-        m_startVideoCamera = true;
+//        startPreview();
         if (mUseFilter) { //demo中默认设置为干净滤镜
             mLSMediaCapture.setBeautyLevel(5); //磨皮强度为5,共5档，0为关闭
             mLSMediaCapture.setFilterStrength(0.5f); //滤镜强度
@@ -303,72 +283,6 @@ public class LiveStreamingActivity extends FragmentActivity implements OnClickLi
 //            }
 //        }.start();
         //【示例代码】结束
-
-
-        //********** 摄像头采集原始数据回调（非滤镜模式下开发者可以修改该数据，美颜增加滤镜等，推出的流便随之发生变化） *************//
-        if (mVideoCallback) {
-            if ("true".equals(isOpen)) {
-                mLSMediaCapture.setCaptureRawDataCB(new VideoCallback() {
-
-                    private void cheekFaceNum() {
-                        //根据有无人脸 + 设备性能 判断开启的磨皮类型
-                        float faceProcessorGetConfidenceScore = FUAIKit.getInstance().getFaceProcessorGetConfidenceScore(0);
-                        if (faceProcessorGetConfidenceScore >= 0.95) {
-                            //高端手机并且检测到人脸开启均匀磨皮，人脸点位质
-                            if (FURenderKit.getInstance().getFaceBeauty() != null && FURenderKit.getInstance().getFaceBeauty().getBlurType() != FaceBeautyBlurTypeEnum.EquallySkin) {
-                                FURenderKit.getInstance().getFaceBeauty().setBlurType(FaceBeautyBlurTypeEnum.EquallySkin);
-                                FURenderKit.getInstance().getFaceBeauty().setEnableBlurUseMask(true);
-                            }
-                        } else {
-                            if (FURenderKit.getInstance().getFaceBeauty() != null && FURenderKit.getInstance().getFaceBeauty().getBlurType() != FaceBeautyBlurTypeEnum.FineSkin) {
-                                FURenderKit.getInstance().getFaceBeauty().setBlurType(FaceBeautyBlurTypeEnum.FineSkin);
-                                FURenderKit.getInstance().getFaceBeauty().setEnableBlurUseMask(false);
-                            }
-                        }
-                    }
-
-                    @Override
-                    /**
-                     * 摄像头采集数据回调
-                     * @param data 摄像头采集的原始数据(NV21格式)
-                     * @param textureId  摄像头采集的纹理ID
-                     * @param width 视频宽
-                     * @param height 视频高
-                     * @param orientation 相机采集角度
-                     * @return 滤镜后的纹理ID (<=0 表示没有进行滤镜或是滤镜库返回的是buffer数据(NV21格式)，sdk将会使用buffer数据进行后续处理)
-                     */
-                    public int onVideoCapture(byte[] data, int textureId, int width, int height, int orientation) {
-                        if (!isFURendererInit) {
-                            mFURenderer.prepareRenderer(mFURendererListener);
-                            initCsvUtil(LiveStreamingActivity.this);
-                            isFURendererInit = true;
-                        }
-                        mFURenderer.setInputOrientation(orientation);
-                        if (FUConfig.DEVICE_LEVEL > FuDeviceUtils.DEVICE_LEVEL_MID) {
-                            cheekFaceNum();
-                        }
-                        Log.d(TAG, "onVideoCapture: " + orientation);
-                        long start = System.currentTimeMillis();
-                        FURenderOutputData outputData;
-                        if (mFaceUnityDataFactory.isMakeupLoaded()) {
-                            //美妆使用单输入
-                            outputData = mFURenderer.onDrawFrameDualInputReturn(data, 0, width, height);
-                        }else {
-                            outputData = mFURenderer.onDrawFrameDualInputReturn(data, textureId, width, height);
-                        }
-                        long renderTime = System.nanoTime() - start;
-                        if (mCSVUtils != null) {
-                            mCSVUtils.writeCsv(null, renderTime);
-                        }
-                        if (outputData != null && outputData.getImage() != null && outputData.getImage().getBuffer() != null) {
-                            System.arraycopy(outputData.getImage().getBuffer(),0, data, 0, data.length);
-                        }
-                        return 0;
-                    }
-                });
-            }
-        }
-
 
         //********** 麦克风采集原始数据回调（开发者可以修改该数据，进行降噪、回音消除等，推出的流便随之发生变化） *************//
         if (mAudioCallback) {
@@ -465,10 +379,110 @@ public class LiveStreamingActivity extends FragmentActivity implements OnClickLi
         }
     }
 
+    private void startPreview() {
+        ConfigActivity.PublishParam publishParam = (ConfigActivity.PublishParam) getIntent().getSerializableExtra("data");
+
+        NeteaseView videoView = (NeteaseView) findViewById(R.id.videoview);
+        boolean frontCamera = publishParam.frontCamera; // 是否前置摄像头
+        boolean mScale_16x9 = publishParam.isScale_16x9; //是否强制16:9
+        if (publishParam.streamType != AUDIO) { //开启预览画面
+//            lsMediaCapture.VideoQuality videoQuality = publishParam.videoQuality; //视频模板（SUPER_HIGH 1280*720、SUPER 960*540、HIGH 640*480、MEDIUM 480*360、LOW 352*288）
+//            mLSMediaCapture.startVideoPreview(videoView, frontCamera, mUseFilter, videoQuality, mScale_16x9);
+
+            // SDK 默认提供 /** 标清 480*360 */MEDIUM, /** 高清 640*480 */HIGH,
+            // /** 超清 960*540 */SUPER,/** 超高清 (1280*720) */SUPER_HIGH  四个模板，
+            // 用户如果需要自定义分辨率可以调用startVideoPreviewEx 接口并参考以下参数
+            // 码率计算公式为 width * height * fps * 9 /100;
+
+            lsMediaCapture.VideoPara para = new lsMediaCapture.VideoPara();
+            para.setHeight(720);
+            para.setWidth(1280);
+            para.setFps(30);
+            para.setBitrate(1200*1024);
+            mLSMediaCapture.startVideoPreviewEx(videoView,frontCamera,mUseFilter,para);
+            m_startVideoCamera = true;
+        }
+
+        //********** 摄像头采集原始数据回调（非滤镜模式下开发者可以修改该数据，美颜增加滤镜等，推出的流便随之发生变化） *************//
+        if (mVideoCallback) {
+            if ("true".equals(isOpen)) {
+                mLSMediaCapture.setCaptureRawDataCB(new VideoCallback() {
+
+                    private void cheekFaceNum() {
+                        //根据有无人脸 + 设备性能 判断开启的磨皮类型
+                        float faceProcessorGetConfidenceScore = FUAIKit.getInstance().getFaceProcessorGetConfidenceScore(0);
+                        if (faceProcessorGetConfidenceScore >= 0.95) {
+                            //高端手机并且检测到人脸开启均匀磨皮，人脸点位质
+                            if (FURenderKit.getInstance().getFaceBeauty() != null && FURenderKit.getInstance().getFaceBeauty().getBlurType() != FaceBeautyBlurTypeEnum.EquallySkin) {
+                                FURenderKit.getInstance().getFaceBeauty().setBlurType(FaceBeautyBlurTypeEnum.EquallySkin);
+                                FURenderKit.getInstance().getFaceBeauty().setEnableBlurUseMask(true);
+                            }
+                        } else {
+                            if (FURenderKit.getInstance().getFaceBeauty() != null && FURenderKit.getInstance().getFaceBeauty().getBlurType() != FaceBeautyBlurTypeEnum.FineSkin) {
+                                FURenderKit.getInstance().getFaceBeauty().setBlurType(FaceBeautyBlurTypeEnum.FineSkin);
+                                FURenderKit.getInstance().getFaceBeauty().setEnableBlurUseMask(false);
+                            }
+                        }
+                    }
+
+                    @Override
+                    /**
+                     * 摄像头采集数据回调
+                     * @param data 摄像头采集的原始数据(NV21格式)
+                     * @param textureId  摄像头采集的纹理ID
+                     * @param width 视频宽
+                     * @param height 视频高
+                     * @param orientation 相机采集角度
+                     * @return 滤镜后的纹理ID (<=0 表示没有进行滤镜或是滤镜库返回的是buffer数据(NV21格式)，sdk将会使用buffer数据进行后续处理)
+                     */
+                    public int onVideoCapture(byte[] data, int textureId, int width, int height, int orientation) {
+                        if (!isFURendererInit) {
+                            mFURenderer.prepareRenderer(mFURendererListener);
+                            initCsvUtil(LiveStreamingActivity.this);
+                            isFURendererInit = true;
+                        }
+                        mFURenderer.setInputOrientation(orientation);
+                        if (FUConfig.DEVICE_LEVEL > FuDeviceUtils.DEVICE_LEVEL_MID) {
+                            cheekFaceNum();
+                        }
+                        Log.d(TAG, "onVideoCapture: " + orientation);
+                        long start = System.currentTimeMillis();
+                        FURenderOutputData outputData;
+                        if (mFaceUnityDataFactory.isMakeupLoaded()) {
+                            //美妆使用单输入
+                            outputData = mFURenderer.onDrawFrameDualInputReturn(data, 0, width, height);
+                        }else {
+                            outputData = mFURenderer.onDrawFrameDualInputReturn(data, textureId, width, height);
+                        }
+                        long renderTime = System.nanoTime() - start;
+                        if (mCSVUtils != null) {
+                            mCSVUtils.writeCsv(null, renderTime);
+                        }
+                        if (outputData != null && outputData.getImage() != null && outputData.getImage().getBuffer() != null) {
+                            System.arraycopy(outputData.getImage().getBuffer(),0, data, 0, data.length);
+                        }
+                        return 0;
+                    }
+                });
+            }
+        }
+    }
+
+    private void stopPreview() {
+        if (mLSMediaCapture != null) {
+            mLSMediaCapture.stopVideoPreview();
+            m_startVideoCamera = false;
+        }
+        if (mFURenderer != null) {
+            mFURenderer.release();
+            isFURendererInit = false;
+        }
+    }
 
     @Override
     protected void onPause() {
         Log.i(TAG, "Activity onPause");
+        stopPreview();
         if (mLSMediaCapture != null) {
             if (!m_tryToStopLivestreaming && m_liveStreamingOn) {
                 if (mLiveStreamingPara.getStreamType() != AUDIO) {
@@ -487,6 +501,7 @@ public class LiveStreamingActivity extends FragmentActivity implements OnClickLi
     protected void onResume() {
         Log.i(TAG, "Activity onResume");
         super.onResume();
+        startPreview();
         if (mLSMediaCapture != null && m_liveStreamingOn) {
             if (mLiveStreamingPara.getStreamType() != AUDIO) {
                 //关闭推流固定图像，正常推流
