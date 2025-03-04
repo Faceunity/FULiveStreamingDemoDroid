@@ -235,7 +235,7 @@ public class FURenderer extends IFURenderer {
         synchronized (queueLock) {
             mEventQueue.clear();
             mClearQueue = false;
-            mFURenderKit.release();
+            mFURenderKit.releaseSafe();
             aIProcessTrackStatus = -1;
             if (mFURendererListener != null) {
                 mFURendererListener.onRelease();
