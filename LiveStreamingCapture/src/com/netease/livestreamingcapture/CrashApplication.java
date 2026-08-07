@@ -19,7 +19,7 @@ public class CrashApplication extends Application {
         CrashHandler crashHandler = CrashHandler.getInstance();
         crashHandler.init(getApplicationContext());
 
-        FUConfig.DEVICE_LEVEL = FuDeviceUtils.judgeDeviceLevelGPU();
+        FUConfig.DEVICE_LEVEL = FuDeviceUtils.judgeDeviceLevel(true);
         FURenderer.getInstance().setup(this);
     }
 

@@ -442,7 +442,7 @@ public class LiveStreamingActivity extends FragmentActivity implements OnClickLi
                             isFURendererInit = true;
                         }
                         mFURenderer.setInputOrientation(orientation);
-                        if (FUConfig.DEVICE_LEVEL > FuDeviceUtils.DEVICE_LEVEL_MID) {
+                        if (FUConfig.DEVICE_LEVEL > FuDeviceUtils.DEVICE_LEVEL_TWO) {
                             cheekFaceNum();
                         }
                         Log.d(TAG, "onVideoCapture: " + orientation);
